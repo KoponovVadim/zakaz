@@ -2,15 +2,15 @@ import secrets
 from datetime import datetime, timezone
 from urllib.parse import urlparse, urlunparse
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.crypto import decrypt_secret, encrypt_secret, generate_secret, hash_secret
 from app.db.session import get_db
-from app.models import Client, Site, SiteSource
+from app.models import Client, Order, OrderComment, OrderItem, OrderStatusHistory, Site, SiteSource, SyncCursor, SyncLog
 from app.schemas.site import ConnectorCheckResponse, SiteCreate, SiteRead, SiteUpdate
 from app.services.connector_client import call_connector
 from app.services.connector_generator import render_connector
@@ -91,19 +91,31 @@ def update_site(site_id: int, payload: SiteUpdate, db: Session = Depends(get_db)
 @router.delete("/{site_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_site(site_id: int, db: Session = Depends(get_db)):
     site = get_site_or_404(db, site_id)
+    order_ids = select(Order.id).where(Order.site_id == site_id)
+    db.execute(delete(OrderItem).where(OrderItem.order_id.in_(order_ids)))
+    db.execute(delete(OrderComment).where(OrderComment.order_id.in_(order_ids)))
+    db.execute(delete(OrderStatusHistory).where(OrderStatusHistory.order_id.in_(order_ids)))
+    db.execute(delete(Order).where(Order.site_id == site_id))
+    db.execute(delete(SyncCursor).where(SyncCursor.site_id == site_id))
+    db.execute(delete(SyncLog).where(SyncLog.site_id == site_id))
+    db.execute(delete(SiteSource).where(SiteSource.site_id == site_id))
     db.delete(site)
     db.commit()
     return None
 
 
 @router.get("/{site_id}/connector/download")
-def download_connector(site_id: int, db: Session = Depends(get_db)):
+def download_connector(
+    site_id: int,
+    filename: str = Query(default="leadhub-connector.php", pattern="^(leadhub-connector\\.php|lh\\.php)$"),
+    db: Session = Depends(get_db),
+):
     site = get_site_or_404(db, site_id)
     content = render_connector(site.joomla_version, site.site_uid, decrypt_secret(site.connector_secret_encrypted))
     return Response(
         content=content,
         media_type="application/x-httpd-php",
-        headers={"Content-Disposition": 'attachment; filename="leadhub-connector.php"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

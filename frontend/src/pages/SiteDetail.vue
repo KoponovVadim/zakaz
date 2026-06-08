@@ -17,11 +17,13 @@
 
     <section v-if="site">
       <div class="toolbar">
-        <button type="button" @click="download"><Download :size="18" /> Connector</button>
+        <button type="button" @click="download('leadhub-connector.php')"><Download :size="18" /> leadhub-connector.php</button>
+        <button type="button" @click="download('lh.php')"><Download :size="18" /> lh.php</button>
         <button type="button" @click="ping"><PlugZap :size="18" /> Проверить</button>
         <button type="button" @click="discover"><Search :size="18" /> Discover</button>
         <button type="button" @click="sync"><RefreshCw :size="18" /> Sync</button>
         <button type="button" @click="activate"><Power :size="18" /> Активировать</button>
+        <button type="button" class="danger" @click="deleteSite"><Trash2 :size="18" /> Удалить сайт</button>
       </div>
       <p v-if="message" class="notice">{{ message }}</p>
       <p v-if="site.last_error" class="error">Ошибка: {{ site.last_error }}</p>
@@ -71,13 +73,14 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import { Download, PlugZap, Power, RefreshCw, Search } from 'lucide-vue-next'
+import { useRoute, useRouter } from 'vue-router'
+import { Download, PlugZap, Power, RefreshCw, Search, Trash2 } from 'lucide-vue-next'
 import DataTable from '../components/DataTable.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import { api } from '../api/client'
 
 const route = useRoute()
+const router = useRouter()
 const site = ref(null)
 const orders = ref([])
 const message = ref('')
@@ -140,8 +143,8 @@ async function reload() {
   await loadOrders()
 }
 
-async function download() {
-  const response = await fetch(`/api/sites/${route.params.id}/connector/download`, {
+async function download(filename) {
+  const response = await fetch(`/api/sites/${route.params.id}/connector/download?filename=${encodeURIComponent(filename)}`, {
     headers: { Authorization: `Bearer ${localStorage.getItem('zakaz_token')}` }
   })
   if (!response.ok) {
@@ -152,7 +155,7 @@ async function download() {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = 'leadhub-connector.php'
+  link.download = filename
   link.click()
   URL.revokeObjectURL(url)
 }
@@ -190,6 +193,14 @@ async function sync() {
 async function activate() {
   await api(`/sites/${route.params.id}/activate`, { method: 'POST' })
   await reload()
+}
+
+async function deleteSite() {
+  if (!site.value) return
+  const clientId = site.value.client_id
+  if (!confirm(`Удалить сайт "${site.value.name}" вместе с его заявками и логами синхронизации?`)) return
+  await api(`/sites/${route.params.id}`, { method: 'DELETE' })
+  await router.push(`/clients/${clientId}`)
 }
 
 onMounted(reload)

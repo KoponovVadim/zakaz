@@ -13,8 +13,9 @@
       <template #last_ping_at="{ row }">{{ formatDate(row.last_ping_at) }}</template>
       <template #actions="{ row }">
         <div class="row-actions">
-          <button class="icon-button" title="Скачать connector.php" @click="download(row.id)"><Download :size="18" /></button>
+          <button class="icon-button" title="Скачать leadhub-connector.php" @click="download(row.id, 'leadhub-connector.php')"><Download :size="18" /></button>
           <button class="icon-button" title="Проверить сайт" @click="ping(row.id)"><PlugZap :size="18" /></button>
+          <button class="icon-button danger" title="Удалить сайт" @click="deleteSite(row)"><Trash2 :size="18" /></button>
         </div>
       </template>
     </DataTable>
@@ -24,7 +25,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { Download, PlugZap, Plus } from 'lucide-vue-next'
+import { Download, PlugZap, Plus, Trash2 } from 'lucide-vue-next'
 import DataTable from '../components/DataTable.vue'
 import SiteStatusBadge from '../components/SiteStatusBadge.vue'
 import { api } from '../api/client'
@@ -55,8 +56,8 @@ function formatDate(value) {
   return value ? new Date(value).toLocaleString() : '-'
 }
 
-async function download(id) {
-  const response = await fetch(`/api/sites/${id}/connector/download`, {
+async function download(id, filename) {
+  const response = await fetch(`/api/sites/${id}/connector/download?filename=${encodeURIComponent(filename)}`, {
     headers: { Authorization: `Bearer ${localStorage.getItem('zakaz_token')}` }
   })
   if (!response.ok) {
@@ -67,7 +68,7 @@ async function download(id) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = 'leadhub-connector.php'
+  link.download = filename
   link.click()
   URL.revokeObjectURL(url)
 }
@@ -78,6 +79,13 @@ async function load() {
 
 async function ping(id) {
   message.value = (await api(`/sites/${id}/ping`, { method: 'POST' })).message
+  await load()
+}
+
+async function deleteSite(site) {
+  if (!confirm(`Удалить сайт "${site.name}" вместе с его заявками и логами синхронизации?`)) return
+  await api(`/sites/${site.id}`, { method: 'DELETE' })
+  message.value = 'Сайт удален'
   await load()
 }
 

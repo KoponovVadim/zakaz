@@ -24,7 +24,10 @@
         <template #status="{ row }"><SiteStatusBadge :value="row.status" /></template>
         <template #last_ping_at="{ row }">{{ formatDate(row.last_ping_at) }}</template>
         <template #actions="{ row }">
-          <button class="icon-button" title="Проверить сайт" @click="ping(row.id)"><PlugZap :size="18" /></button>
+          <div class="row-actions">
+            <button class="icon-button" title="Проверить сайт" @click="ping(row.id)"><PlugZap :size="18" /></button>
+            <button class="icon-button danger" title="Удалить сайт" @click="deleteSite(row)"><Trash2 :size="18" /></button>
+          </div>
         </template>
       </DataTable>
     </section>
@@ -34,7 +37,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { PlugZap } from 'lucide-vue-next'
+import { PlugZap, Trash2 } from 'lucide-vue-next'
 import DataTable from '../components/DataTable.vue'
 import SiteStatusBadge from '../components/SiteStatusBadge.vue'
 import { api } from '../api/client'
@@ -76,6 +79,12 @@ async function load() {
 
 async function ping(id) {
   await api(`/sites/${id}/ping`, { method: 'POST' })
+  await load()
+}
+
+async function deleteSite(site) {
+  if (!confirm(`Удалить сайт "${site.name}" вместе с его заявками и логами синхронизации?`)) return
+  await api(`/sites/${site.id}`, { method: 'DELETE' })
   await load()
 }
 

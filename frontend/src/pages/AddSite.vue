@@ -28,8 +28,9 @@
     </form>
     <div v-if="created" class="result">
       <h2>Подключение создано</h2>
-      <button type="button" @click="downloadConnector(created.id)">Скачать leadhub-connector.php</button>
-      <p>Загрузите файл в корень сайта: public_html/leadhub-connector.php</p>
+      <button type="button" @click="downloadConnector(created.id, 'leadhub-connector.php')">Скачать leadhub-connector.php</button>
+      <button type="button" @click="downloadConnector(created.id, 'lh.php')">Скачать lh.php</button>
+      <p>Загрузите файл в корень сайта: public_html/lh.php или public_html/leadhub-connector.php</p>
     </div>
   </div>
 </template>
@@ -62,8 +63,8 @@ async function submit() {
   created.value = await api('/sites', { method: 'POST', body: JSON.stringify(form) })
 }
 
-async function downloadConnector(id) {
-  const response = await fetch(`/api/sites/${id}/connector/download`, {
+async function downloadConnector(id, filename) {
+  const response = await fetch(`/api/sites/${id}/connector/download?filename=${encodeURIComponent(filename)}`, {
     headers: { Authorization: `Bearer ${localStorage.getItem('zakaz_token')}` }
   })
   if (!response.ok) {
@@ -74,7 +75,7 @@ async function downloadConnector(id) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = 'leadhub-connector.php'
+  link.download = filename
   link.click()
   URL.revokeObjectURL(url)
 }

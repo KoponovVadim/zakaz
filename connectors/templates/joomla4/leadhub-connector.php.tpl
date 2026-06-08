@@ -8,6 +8,22 @@ error_reporting(0);
 ini_set('display_errors', '0');
 header('Content-Type: application/json; charset=utf-8');
 
+if (!function_exists('hash_equals')) {
+    function hash_equals($knownString, $userString) {
+        if (!is_string($knownString) || !is_string($userString)) {
+            return false;
+        }
+        if (strlen($knownString) !== strlen($userString)) {
+            return false;
+        }
+        $result = 0;
+        for ($i = 0; $i < strlen($knownString); $i++) {
+            $result |= ord($knownString[$i]) ^ ord($userString[$i]);
+        }
+        return $result === 0;
+    }
+}
+
 function leadhub_json($data, $code = 200) {
     http_response_code($code);
     echo json_encode($data, JSON_UNESCAPED_UNICODE);
