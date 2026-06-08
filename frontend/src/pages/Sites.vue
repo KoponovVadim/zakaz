@@ -41,6 +41,10 @@ async function download(id) {
   const response = await fetch(`/api/sites/${id}/connector/download`, {
     headers: { Authorization: `Bearer ${localStorage.getItem('zakaz_token')}` }
   })
+  if (!response.ok) {
+    message.value = await response.text()
+    return
+  }
   const blob = await response.blob()
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
