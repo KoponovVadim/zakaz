@@ -9,6 +9,21 @@ def connector_url(base_url: str, params: dict[str, str | int]) -> str:
     return base_url.rstrip("/") + "/leadhub-connector.php?" + urlencode(params)
 
 
+def connector_error(response: httpx.Response) -> str:
+    try:
+        data = response.json()
+        if isinstance(data, dict):
+            code = data.get("code") or "connector_error"
+            message = data.get("message") or data.get("status") or response.text
+            return f"{response.status_code} {code}: {message}"
+    except ValueError:
+        pass
+    text = response.text.strip()
+    if len(text) > 500:
+        text = text[:500] + "..."
+    return f"{response.status_code}: {text or response.reason_phrase}"
+
+
 async def call_connector(base_url: str, secret: str, site_uid: str, action: str, **extra):
     ts, sig = sign_request(
         secret=secret,
@@ -21,5 +36,6 @@ async def call_connector(base_url: str, secret: str, site_uid: str, action: str,
     params.update({k: v for k, v in extra.items() if v is not None})
     async with httpx.AsyncClient(timeout=20) as client:
         response = await client.get(connector_url(base_url, params))
-        response.raise_for_status()
+        if response.status_code >= 400:
+            raise RuntimeError(connector_error(response))
         return response.json()
