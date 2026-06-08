@@ -36,6 +36,17 @@ def parse_decimal(value):
         return None
 
 
+def clean_text(value, limit: int | None = None):
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if limit and len(text) > limit:
+        return text[:limit]
+    return text
+
+
 def get_cursor(db: Session, site_id: int, source_type: str) -> SyncCursor:
     cursor = db.scalar(
         select(SyncCursor).where(SyncCursor.site_id == site_id, SyncCursor.source_type == source_type)
@@ -54,7 +65,7 @@ def save_connector_items(db: Session, site: Site, source_type: str, items: list[
     max_external_id = None
 
     for item in items:
-        external_id = str(item.get("external_id") or item.get("id") or "")
+        external_id = clean_text(item.get("external_id") or item.get("id"), 120) or ""
         if not external_id:
             continue
 
@@ -78,25 +89,25 @@ def save_connector_items(db: Session, site: Site, source_type: str, items: list[
         else:
             updated += 1
 
-        order.external_number = item.get("external_number") or item.get("number")
+        order.external_number = clean_text(item.get("external_number") or item.get("number"), 120)
         order.external_created_at = parse_datetime(item.get("external_created_at") or item.get("created_at"))
-        order.customer_name = item.get("customer_name")
-        order.customer_phone = item.get("customer_phone")
-        order.customer_email = item.get("customer_email")
-        order.title = item.get("title")
-        order.message = item.get("message")
+        order.customer_name = clean_text(item.get("customer_name"), 255)
+        order.customer_phone = clean_text(item.get("customer_phone"), 80)
+        order.customer_email = clean_text(item.get("customer_email"), 255)
+        order.title = clean_text(item.get("title"), 500)
+        order.message = clean_text(item.get("message"))
         order.amount = parse_decimal(item.get("amount"))
-        order.currency = item.get("currency")
-        order.external_status = item.get("external_status") or item.get("status")
+        order.currency = clean_text(item.get("currency"), 10)
+        order.external_status = clean_text(item.get("external_status") or item.get("status"), 120)
         order.raw_payload = item
 
         if source_type == "virtuemart":
             order.items.clear()
             for raw_item in item.get("items") or []:
-                name = raw_item.get("name") or raw_item.get("product_name") or "Товар"
+                name = clean_text(raw_item.get("name") or raw_item.get("product_name"), 500) or "Товар"
                 order.items.append(
                     OrderItem(
-                        sku=raw_item.get("sku"),
+                        sku=clean_text(raw_item.get("sku"), 120),
                         name=name,
                         quantity=parse_decimal(raw_item.get("quantity")) or Decimal("1"),
                         price=parse_decimal(raw_item.get("price")),
@@ -149,6 +160,7 @@ async def run_site_sync(db: Session, site: Site, secret: str, source_type: str |
             totals["updated"] += result["updated"]
             totals["sources"][current_type] = result
         except Exception as exc:
+            db.rollback()
             db.add(
                 SyncLog(
                     site_id=site.id,
@@ -158,6 +170,7 @@ async def run_site_sync(db: Session, site: Site, secret: str, source_type: str |
                     message=str(exc),
                 )
             )
+            db.commit()
             totals["sources"][current_type] = {"error": str(exc)}
 
     site.last_sync_at = datetime.now(timezone.utc)
