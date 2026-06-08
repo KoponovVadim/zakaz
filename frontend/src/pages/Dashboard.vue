@@ -2,29 +2,33 @@
   <div>
     <div class="page-head">
       <h1>Дашборд</h1>
-    </div>
-    <div class="stats">
-      <div><b>{{ summary.clients }}</b><span>Клиенты</span></div>
-      <div><b>{{ summary.sites }}</b><span>Сайты</span></div>
-      <div><b>{{ summary.active_sites }}</b><span>Активные</span></div>
-      <div><b>{{ summary.orders }}</b><span>Заявки</span></div>
-      <div><b>{{ summary.new_orders }}</b><span>Новые</span></div>
+      <button type="button" @click="refreshAll">Обновить</button>
     </div>
 
-    <section>
+    <div class="stats">
+      <div><b>{{ clients.length }}</b><span>Клиенты</span></div>
+      <div><b>{{ sites.length }}</b><span>Сайты</span></div>
+      <div><b>{{ aliveCount }}</b><span>Живые</span></div>
+      <div><b>{{ deadCount }}</b><span>Проблемные</span></div>
+    </div>
+
+    <section v-for="client in clients" :key="client.id" class="client-block">
       <div class="page-head compact">
-        <h2>Последние заказы</h2>
-        <RouterLink to="/orders">Все заказы</RouterLink>
+        <h2><RouterLink :to="`/clients/${client.id}`">{{ client.name }}</RouterLink></h2>
+        <RouterLink :to="`/sites/add?client_id=${client.id}`">Добавить сайт</RouterLink>
       </div>
-      <DataTable :columns="columns" :rows="orders">
-        <template #external_number="{ row }">
-          <RouterLink :to="`/orders/${row.id}`">{{ row.external_number || row.id }}</RouterLink>
+
+      <DataTable :columns="columns" :rows="sitesByClient(client.id)">
+        <template #name="{ row }">
+          <RouterLink :to="`/sites/${row.id}`">{{ row.name }}</RouterLink>
         </template>
-        <template #amount="{ row }">
-          {{ row.amount ? `${row.amount} ${row.currency || ''}` : '' }}
+        <template #health="{ row }">
+          <span class="health" :class="healthClass(row)">{{ healthLabel(row) }}</span>
         </template>
-        <template #internal_status="{ row }">
-          <StatusBadge :value="row.internal_status" />
+        <template #status="{ row }"><SiteStatusBadge :value="row.status" /></template>
+        <template #last_ping_at="{ row }">{{ formatDate(row.last_ping_at) }}</template>
+        <template #actions="{ row }">
+          <button class="icon-button" title="Проверить сайт" @click="ping(row.id)"><PlugZap :size="18" /></button>
         </template>
       </DataTable>
     </section>
@@ -32,24 +36,67 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { PlugZap } from 'lucide-vue-next'
 import DataTable from '../components/DataTable.vue'
-import StatusBadge from '../components/StatusBadge.vue'
+import SiteStatusBadge from '../components/SiteStatusBadge.vue'
 import { api } from '../api/client'
 
-const summary = ref({ clients: 0, sites: 0, active_sites: 0, orders: 0, new_orders: 0 })
-const orders = ref([])
+const clients = ref([])
+const sites = ref([])
+let timer = null
+
 const columns = [
-  { key: 'external_number', label: 'Номер' },
-  { key: 'client_name', label: 'Клиент' },
-  { key: 'site_name', label: 'Сайт' },
-  { key: 'customer_name', label: 'Покупатель' },
-  { key: 'amount', label: 'Сумма' },
-  { key: 'internal_status', label: 'Статус' }
+  { key: 'name', label: 'Сайт' },
+  { key: 'url', label: 'URL' },
+  { key: 'health', label: 'Жив/мертв' },
+  { key: 'status', label: 'Статус' },
+  { key: 'last_ping_at', label: 'Последняя проверка' },
+  { key: 'actions', label: '' }
 ]
 
+const aliveCount = computed(() => sites.value.filter((site) => healthClass(site) === 'alive').length)
+const deadCount = computed(() => sites.value.filter((site) => healthClass(site) === 'dead').length)
+
+function sitesByClient(clientId) {
+  return sites.value.filter((site) => site.client_id === clientId)
+}
+
+function healthClass(site) {
+  if (site.status === 'error' || site.status === 'disabled') return 'dead'
+  if (site.status === 'connected' || site.status === 'active') return 'alive'
+  return 'unknown'
+}
+
+function healthLabel(site) {
+  const map = { alive: 'Жив', dead: 'Мертв', unknown: 'Не проверен' }
+  return map[healthClass(site)]
+}
+
+function formatDate(value) {
+  return value ? new Date(value).toLocaleString() : '-'
+}
+
+async function load() {
+  clients.value = await api('/clients')
+  sites.value = await api('/sites')
+}
+
+async function ping(id) {
+  await api(`/sites/${id}/ping`, { method: 'POST' })
+  await load()
+}
+
+async function refreshAll() {
+  await load()
+}
+
 onMounted(async () => {
-  summary.value = await api('/dashboard/summary')
-  orders.value = await api('/dashboard/recent-orders')
+  await load()
+  timer = window.setInterval(load, 15000)
+})
+
+onUnmounted(() => {
+  if (timer) window.clearInterval(timer)
 })
 </script>

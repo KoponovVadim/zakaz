@@ -6,10 +6,9 @@ import Dashboard from './pages/Dashboard.vue'
 import Clients from './pages/Clients.vue'
 import ClientDetail from './pages/ClientDetail.vue'
 import Sites from './pages/Sites.vue'
+import SiteDetail from './pages/SiteDetail.vue'
 import AddSite from './pages/AddSite.vue'
-import Orders from './pages/Orders.vue'
 import OrderDetail from './pages/OrderDetail.vue'
-import DirectAnalytics from './pages/DirectAnalytics.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -25,9 +24,8 @@ const router = createRouter({
         { path: 'clients/:id', component: ClientDetail },
         { path: 'sites', component: Sites },
         { path: 'sites/add', component: AddSite },
-        { path: 'orders', component: Orders },
-        { path: 'orders/:id', component: OrderDetail },
-        { path: 'analytics/direct', component: DirectAnalytics }
+        { path: 'sites/:id', component: SiteDetail },
+        { path: 'orders/:id', component: OrderDetail }
       ]
     }
   ]

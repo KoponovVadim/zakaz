@@ -6,7 +6,6 @@
         <RouterLink to="/">Дашборд</RouterLink>
         <RouterLink to="/clients">Клиенты</RouterLink>
         <RouterLink to="/sites">Сайты</RouterLink>
-        <RouterLink to="/orders">Заказы</RouterLink>
       </nav>
     </aside>
     <main>

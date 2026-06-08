@@ -2,66 +2,82 @@
   <div>
     <div class="page-head">
       <h1>{{ client?.name || 'Клиент' }}</h1>
-      <RouterLink class="button" to="/sites/add">Добавить сайт</RouterLink>
+      <RouterLink class="button" :to="`/sites/add?client_id=${route.params.id}`">Добавить сайт</RouterLink>
     </div>
     <p class="muted">{{ client?.comment }}</p>
 
     <div class="stats">
-      <div><b>{{ client?.sites_count || 0 }}</b><span>Сайты</span></div>
-      <div><b>{{ client?.orders_count || 0 }}</b><span>Заказы</span></div>
+      <div><b>{{ sites.length }}</b><span>Сайты</span></div>
+      <div><b>{{ aliveCount }}</b><span>Живые</span></div>
+      <div><b>{{ deadCount }}</b><span>Проблемные</span></div>
     </div>
 
     <section>
       <h2>Сайты клиента</h2>
       <DataTable :columns="siteColumns" :rows="sites">
-        <template #status="{ row }"><SiteStatusBadge :value="row.status" /></template>
-      </DataTable>
-    </section>
-
-    <section>
-      <div class="page-head compact">
-        <h2>Последние заказы</h2>
-        <RouterLink :to="`/orders?client_id=${route.params.id}`">Все заказы клиента</RouterLink>
-      </div>
-      <DataTable :columns="orderColumns" :rows="orders">
-        <template #external_number="{ row }">
-          <RouterLink :to="`/orders/${row.id}`">{{ row.external_number || row.id }}</RouterLink>
+        <template #name="{ row }">
+          <RouterLink :to="`/sites/${row.id}`">{{ row.name }}</RouterLink>
         </template>
-        <template #internal_status="{ row }"><StatusBadge :value="row.internal_status" /></template>
+        <template #health="{ row }">
+          <span class="health" :class="healthClass(row)">{{ healthLabel(row) }}</span>
+        </template>
+        <template #status="{ row }"><SiteStatusBadge :value="row.status" /></template>
+        <template #last_ping_at="{ row }">{{ formatDate(row.last_ping_at) }}</template>
+        <template #actions="{ row }">
+          <button class="icon-button" title="Проверить сайт" @click="ping(row.id)"><PlugZap :size="18" /></button>
+        </template>
       </DataTable>
     </section>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { PlugZap } from 'lucide-vue-next'
 import DataTable from '../components/DataTable.vue'
 import SiteStatusBadge from '../components/SiteStatusBadge.vue'
-import StatusBadge from '../components/StatusBadge.vue'
 import { api } from '../api/client'
 
 const route = useRoute()
 const client = ref(null)
 const sites = ref([])
-const orders = ref([])
 const siteColumns = [
   { key: 'name', label: 'Сайт' },
   { key: 'url', label: 'URL' },
-  { key: 'joomla_version', label: 'Joomla' },
-  { key: 'status', label: 'Статус' }
-]
-const orderColumns = [
-  { key: 'external_number', label: 'Номер' },
-  { key: 'site_name', label: 'Сайт' },
-  { key: 'customer_name', label: 'Покупатель' },
-  { key: 'customer_phone', label: 'Телефон' },
-  { key: 'internal_status', label: 'Статус' }
+  { key: 'health', label: 'Жив/мертв' },
+  { key: 'status', label: 'Статус' },
+  { key: 'last_ping_at', label: 'Последняя проверка' },
+  { key: 'actions', label: '' }
 ]
 
-onMounted(async () => {
+const aliveCount = computed(() => sites.value.filter((site) => healthClass(site) === 'alive').length)
+const deadCount = computed(() => sites.value.filter((site) => healthClass(site) === 'dead').length)
+
+function healthClass(site) {
+  if (site.status === 'error' || site.status === 'disabled') return 'dead'
+  if (site.status === 'connected' || site.status === 'active') return 'alive'
+  return 'unknown'
+}
+
+function healthLabel(site) {
+  const map = { alive: 'Жив', dead: 'Мертв', unknown: 'Не проверен' }
+  return map[healthClass(site)]
+}
+
+function formatDate(value) {
+  return value ? new Date(value).toLocaleString() : '-'
+}
+
+async function load() {
   client.value = await api(`/clients/${route.params.id}`)
   sites.value = await api(`/sites?client_id=${route.params.id}`)
-  orders.value = await api(`/orders?client_id=${route.params.id}&limit=10`)
-})
+}
+
+async function ping(id) {
+  await api(`/sites/${id}/ping`, { method: 'POST' })
+  await load()
+}
+
+onMounted(load)
 </script>

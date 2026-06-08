@@ -36,8 +36,10 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { api } from '../api/client'
 
+const route = useRoute()
 const clients = ref([])
 const created = ref(null)
 const form = reactive({
@@ -51,6 +53,9 @@ const form = reactive({
 
 onMounted(async () => {
   clients.value = await api('/clients')
+  if (route.query.client_id) {
+    form.client_id = Number(route.query.client_id)
+  }
 })
 
 async function submit() {

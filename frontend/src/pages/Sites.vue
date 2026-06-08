@@ -5,14 +5,16 @@
       <RouterLink class="button" to="/sites/add"><Plus :size="18" /> Добавить сайт</RouterLink>
     </div>
     <DataTable :columns="columns" :rows="sites">
+      <template #name="{ row }"><RouterLink :to="`/sites/${row.id}`">{{ row.name }}</RouterLink></template>
+      <template #health="{ row }">
+        <span class="health" :class="healthClass(row)">{{ healthLabel(row) }}</span>
+      </template>
       <template #status="{ row }"><SiteStatusBadge :value="row.status" /></template>
+      <template #last_ping_at="{ row }">{{ formatDate(row.last_ping_at) }}</template>
       <template #actions="{ row }">
         <div class="row-actions">
           <button class="icon-button" title="Скачать connector.php" @click="download(row.id)"><Download :size="18" /></button>
-          <button class="icon-button" title="Ping" @click="ping(row.id)"><PlugZap :size="18" /></button>
-          <button class="icon-button" title="Discover" @click="discover(row.id)"><Search :size="18" /></button>
-          <button class="icon-button" title="Sync" @click="sync(row.id)"><RefreshCw :size="18" /></button>
-          <button class="icon-button" title="Активировать" @click="activate(row.id)"><Power :size="18" /></button>
+          <button class="icon-button" title="Проверить сайт" @click="ping(row.id)"><PlugZap :size="18" /></button>
         </div>
       </template>
     </DataTable>
@@ -22,7 +24,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { Download, PlugZap, Plus, Power, RefreshCw, Search } from 'lucide-vue-next'
+import { Download, PlugZap, Plus } from 'lucide-vue-next'
 import DataTable from '../components/DataTable.vue'
 import SiteStatusBadge from '../components/SiteStatusBadge.vue'
 import { api } from '../api/client'
@@ -32,10 +34,26 @@ const message = ref('')
 const columns = [
   { key: 'name', label: 'Сайт' },
   { key: 'url', label: 'URL' },
-  { key: 'joomla_version', label: 'Joomla' },
+  { key: 'health', label: 'Жив/мертв' },
   { key: 'status', label: 'Статус' },
+  { key: 'last_ping_at', label: 'Последняя проверка' },
   { key: 'actions', label: '' }
 ]
+
+function healthClass(site) {
+  if (site.status === 'error' || site.status === 'disabled') return 'dead'
+  if (site.status === 'connected' || site.status === 'active') return 'alive'
+  return 'unknown'
+}
+
+function healthLabel(site) {
+  const map = { alive: 'Жив', dead: 'Мертв', unknown: 'Не проверен' }
+  return map[healthClass(site)]
+}
+
+function formatDate(value) {
+  return value ? new Date(value).toLocaleString() : '-'
+}
 
 async function download(id) {
   const response = await fetch(`/api/sites/${id}/connector/download`, {
@@ -60,22 +78,6 @@ async function load() {
 
 async function ping(id) {
   message.value = (await api(`/sites/${id}/ping`, { method: 'POST' })).message
-  await load()
-}
-
-async function discover(id) {
-  message.value = (await api(`/sites/${id}/discover`, { method: 'POST' })).message
-  await load()
-}
-
-async function sync(id) {
-  const response = await api(`/sites/${id}/sync`, { method: 'POST' })
-  message.value = `${response.message}: created ${response.data?.created || 0}, updated ${response.data?.updated || 0}`
-  await load()
-}
-
-async function activate(id) {
-  await api(`/sites/${id}/activate`, { method: 'POST' })
   await load()
 }
 

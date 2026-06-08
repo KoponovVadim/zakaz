@@ -261,6 +261,12 @@ legend {
   gap: 6px;
 }
 
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .icon-button {
   align-items: center;
   background: #eef3f7;
@@ -300,6 +306,29 @@ legend {
 }
 
 .badge.pending_install {
+  background: #fff3cd;
+  color: #7a5a00;
+}
+
+.health {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 9px;
+}
+
+.health.alive {
+  background: #d9f0e2;
+  color: #1b6b3a;
+}
+
+.health.dead {
+  background: #fde2df;
+  color: #a5342a;
+}
+
+.health.unknown {
   background: #fff3cd;
   color: #7a5a00;
 }
