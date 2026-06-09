@@ -145,6 +145,8 @@ GET /api/orders/export.csv
 - `FERNET_KEY`
 - `POSTGRES_PASSWORD`
 
+Для сайтов на Beget backend автоматически отправляет к PHP-коннектору заголовок `Cookie: beget=begetok`, чтобы проходить HTML-челлендж хостинга и получать JSON-ответ `leadhub-connector.php`.
+
 `FERNET_KEY` можно сгенерировать так:
 
 ```bash
