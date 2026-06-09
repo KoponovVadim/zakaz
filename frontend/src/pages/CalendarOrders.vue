@@ -11,9 +11,9 @@
           {{ item.label }}
         </button>
       </div>
-      <input v-if="mode === 'day' || mode === 'week'" v-model="selectedDate" type="date" />
-      <input v-if="mode === 'month'" v-model="selectedMonth" type="month" />
-      <input v-if="mode === 'year'" v-model="selectedYear" type="number" min="2000" max="2100" />
+      <input v-if="mode === 'day' || mode === 'week'" v-model="selectedDate" type="date" @change="load" />
+      <input v-if="mode === 'month'" v-model="selectedMonth" type="month" @change="load" />
+      <input v-if="mode === 'year'" v-model="selectedYear" type="number" min="2000" max="2100" @change="load" />
       <button type="submit">Показать</button>
     </form>
 

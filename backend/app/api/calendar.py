@@ -224,7 +224,7 @@ def top_products(db: Session, date_from: date, date_to: date, params: dict) -> l
 @router.get("/summary")
 def calendar_summary(
     mode: str = Query(default="month", pattern="^(day|week|month|year)$"),
-    date: str | None = None,
+    selected_date: str | None = Query(default=None, alias="date"),
     client_id: int | None = None,
     site_id: int | None = None,
     source_type: str | None = None,
@@ -234,7 +234,7 @@ def calendar_summary(
     search: str | None = None,
     db: Session = Depends(get_db),
 ):
-    date_from, date_to = period_bounds(mode, date)
+    date_from, date_to = period_bounds(mode, selected_date)
     params = query_params(client_id, site_id, source_type, source_form_id, internal_status, external_status, search)
     return {"mode": mode, "date_from": date_from.isoformat(), "date_to": date_to.isoformat(), **base_summary(db, date_from, date_to, params)}
 
@@ -242,7 +242,7 @@ def calendar_summary(
 @router.get("/buckets")
 def calendar_buckets(
     mode: str = Query(default="month", pattern="^(day|week|month|year)$"),
-    date: str | None = None,
+    selected_date: str | None = Query(default=None, alias="date"),
     client_id: int | None = None,
     site_id: int | None = None,
     source_type: str | None = None,
@@ -252,7 +252,7 @@ def calendar_buckets(
     search: str | None = None,
     db: Session = Depends(get_db),
 ):
-    date_from, date_to = period_bounds(mode, date)
+    date_from, date_to = period_bounds(mode, selected_date)
     params = query_params(client_id, site_id, source_type, source_form_id, internal_status, external_status, search)
     buckets = {
         item["key"]: {
