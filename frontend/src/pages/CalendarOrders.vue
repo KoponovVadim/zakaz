@@ -111,7 +111,7 @@
 
     <section v-if="mode === 'month'" class="month-grid">
       <article v-for="cell in monthCells" :key="cell.key" class="day-cell" :class="{ muted: !cell.inMonth, empty: !cell.total_count }" @click="cell.inMonth && openDay(cell.date)">
-        <b>{{ new Date(cell.date).getDate() }}</b>
+        <b>{{ dayNumber(cell.date) }}</b>
         <span v-if="cell.total_count">{{ cell.total_count }} обращ.</span>
         <small v-if="cell.total_count">RS {{ cell.rsform_count }} · VM {{ cell.virtuemart_count }}</small>
         <small v-if="cell.revenue">{{ money(cell.revenue) }}</small>
@@ -122,7 +122,7 @@
       <article v-for="bucket in buckets" :key="bucket.date" class="period-card" @click="openMonth(bucket.date)">
         <h3>{{ monthName(bucket.date) }}</h3>
         <p><b>{{ bucket.total_count }}</b> всего, RSForm {{ bucket.rsform_count }}, VM {{ bucket.virtuemart_count }}</p>
-        <p>{{ money(bucket.revenue) }} · средний {{ money(bucket.average_order_amount) }}</p>
+        <p>{{ money(bucket.revenue) }} · средний чек {{ money(bucket.average_order_amount) }}</p>
         <ul>
           <li v-for="product in bucket.top_products" :key="`${product.name}-${product.sku}`">{{ product.name }} · {{ product.quantity }}</li>
         </ul>
@@ -192,7 +192,7 @@ const dayGroups = computed(() => {
 
 const monthCells = computed(() => {
   if (!period.date_from) return []
-  const first = new Date(`${period.date_from}T00:00:00`)
+  const first = dateOnly(period.date_from)
   const start = new Date(first)
   start.setDate(1 - ((first.getDay() + 6) % 7))
   const bucketMap = new Map(buckets.value.map((bucket) => [bucket.date, bucket]))
@@ -200,7 +200,7 @@ const monthCells = computed(() => {
   for (let index = 0; index < 42; index += 1) {
     const current = new Date(start)
     current.setDate(start.getDate() + index)
-    const iso = current.toISOString().slice(0, 10)
+    const iso = toIsoDate(current)
     const bucket = bucketMap.get(iso) || {}
     cells.push({
       key: iso,
@@ -302,8 +302,24 @@ function money(value) {
   return Number(value || 0).toLocaleString('ru-RU')
 }
 
+function dateOnly(value) {
+  const [year, month, day] = String(value).split('-').map(Number)
+  return new Date(year, (month || 1) - 1, day || 1)
+}
+
+function toIsoDate(value) {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function dayNumber(value) {
+  return dateOnly(value).getDate()
+}
+
 function formatDate(value) {
-  return value ? new Date(`${value}T00:00:00`).toLocaleDateString('ru-RU') : ''
+  return value ? dateOnly(value).toLocaleDateString('ru-RU') : ''
 }
 
 function formatTime(value) {
@@ -311,7 +327,7 @@ function formatTime(value) {
 }
 
 function monthName(value) {
-  return new Date(value).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
+  return dateOnly(value).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
 }
 
 onMounted(async () => {
