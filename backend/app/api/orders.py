@@ -47,6 +47,8 @@ def build_orders_query(
     client_id: int | None = None,
     site_id: int | None = None,
     source_type: str | None = None,
+    source_form_id: str | None = None,
+    source_form_name: str | None = None,
     internal_status: str | None = None,
     search: str | None = None,
 ):
@@ -61,6 +63,10 @@ def build_orders_query(
         query = query.where(Order.site_id == site_id)
     if source_type:
         query = query.where(Order.source_type == source_type)
+    if source_form_id:
+        query = query.where(Order.source_form_id == source_form_id)
+    if source_form_name:
+        query = query.where(Order.source_form_name.ilike(f"%{source_form_name}%"))
     if internal_status:
         query = query.where(Order.internal_status == internal_status)
     if search:
@@ -96,13 +102,25 @@ def list_orders(
     client_id: int | None = None,
     site_id: int | None = None,
     source_type: str | None = None,
+    source_form_id: str | None = None,
+    source_form_name: str | None = None,
     internal_status: str | None = None,
     search: str | None = None,
     limit: int = Query(default=200, le=1000),
     db: Session = Depends(get_db),
 ):
     clients, sites = order_names(db)
-    query = build_orders_query(date_from, date_to, client_id, site_id, source_type, internal_status, search)
+    query = build_orders_query(
+        date_from,
+        date_to,
+        client_id,
+        site_id,
+        source_type,
+        source_form_id,
+        source_form_name,
+        internal_status,
+        search,
+    )
     orders = db.scalars(query.order_by(Order.created_at.desc()).limit(limit)).all()
     return [serialize_order(order, clients, sites) for order in orders]
 
@@ -114,13 +132,25 @@ def export_orders(
     client_id: int | None = None,
     site_id: int | None = None,
     source_type: str | None = None,
+    source_form_id: str | None = None,
+    source_form_name: str | None = None,
     internal_status: str | None = None,
     search: str | None = None,
     db: Session = Depends(get_db),
 ):
     clients = {client.id: client.name for client in db.scalars(select(Client)).all()}
     sites = {site.id: site.name for site in db.scalars(select(Site)).all()}
-    query = build_orders_query(date_from, date_to, client_id, site_id, source_type, internal_status, search)
+    query = build_orders_query(
+        date_from,
+        date_to,
+        client_id,
+        site_id,
+        source_type,
+        source_form_id,
+        source_form_name,
+        internal_status,
+        search,
+    )
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow([
@@ -128,6 +158,7 @@ def export_orders(
         "client",
         "site",
         "source_type",
+        "source_form_name",
         "external_number",
         "customer_name",
         "customer_phone",
@@ -145,6 +176,7 @@ def export_orders(
             clients.get(order.client_id, order.client_id),
             sites.get(order.site_id, order.site_id),
             order.source_type,
+            order.source_form_name,
             order.external_number,
             order.customer_name,
             order.customer_phone,

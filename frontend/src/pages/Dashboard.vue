@@ -2,7 +2,10 @@
   <div>
     <div class="page-head">
       <h1>Дашборд</h1>
-      <button type="button" @click="refreshAll">Обновить</button>
+      <div class="toolbar">
+        <RouterLink class="button" to="/calendar">Открыть календарь заказов</RouterLink>
+        <button type="button" @click="refreshAll">Обновить</button>
+      </div>
     </div>
 
     <div class="stats">

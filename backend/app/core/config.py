@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 1440
     fernet_key: str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
     connector_version: str = "1.0.0"
+    connector_sync_limit: int = 500
+    connector_sync_max_batches: int = 50
+    connector_sync_backfill_max_batches: int = 200
     backend_cors_origins: str = "http://localhost,http://127.0.0.1"
     admin_email: str = "admin@example.com"
     admin_password: str = "admin12345"

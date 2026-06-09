@@ -4,8 +4,12 @@
       <div class="brand">Zakaz</div>
       <nav>
         <RouterLink to="/">Дашборд</RouterLink>
+        <RouterLink to="/calendar">Календарь</RouterLink>
         <RouterLink to="/clients">Клиенты</RouterLink>
         <RouterLink to="/sites">Сайты</RouterLink>
+        <RouterLink to="/orders">Все обращения</RouterLink>
+        <RouterLink to="/orders/rsform">RSForm</RouterLink>
+        <RouterLink to="/orders/virtuemart">VirtueMart</RouterLink>
       </nav>
     </aside>
     <main>

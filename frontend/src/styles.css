@@ -275,6 +275,122 @@ legend {
   gap: 8px;
 }
 
+.calendar-controls,
+.segmented {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.calendar-controls {
+  background: #fff;
+  border: 1px solid #dde4ea;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+.calendar-controls input {
+  max-width: 180px;
+}
+
+.segmented button {
+  background: #eef3f7;
+  color: #172026;
+}
+
+.segmented button.active {
+  background: #1769aa;
+  color: #fff;
+}
+
+.calendar-filters {
+  grid-template-columns: 2fr repeat(6, minmax(130px, 1fr)) auto;
+}
+
+.calendar-summary {
+  margin-bottom: 18px;
+}
+
+.hour-list {
+  display: grid;
+  gap: 14px;
+}
+
+.hour-group h3 {
+  color: #52616d;
+  margin: 0 0 8px;
+}
+
+.composition {
+  display: grid;
+  gap: 4px;
+  max-width: 520px;
+}
+
+.composition pre {
+  font-size: 12px;
+  margin: 8px 0 0;
+  max-height: 220px;
+}
+
+.week-grid,
+.year-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.period-card,
+.day-cell {
+  background: #fff;
+  border: 1px solid #dde4ea;
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 14px;
+}
+
+.period-card:hover,
+.day-cell:hover {
+  border-color: #1769aa;
+}
+
+.period-card h3 {
+  margin: 0 0 8px;
+}
+
+.period-card p,
+.period-card ul {
+  margin: 8px 0;
+}
+
+.period-card ul {
+  color: #52616d;
+  padding-left: 18px;
+}
+
+.month-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(7, minmax(110px, 1fr));
+}
+
+.day-cell {
+  aspect-ratio: 1 / 0.8;
+  display: grid;
+  gap: 4px;
+  min-height: 105px;
+}
+
+.day-cell.empty {
+  background: #f8fafb;
+}
+
+.day-cell.muted {
+  opacity: 0.45;
+}
+
 .icon-button {
   align-items: center;
   background: #eef3f7;
@@ -461,6 +577,10 @@ section {
   .filters,
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .month-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .content {

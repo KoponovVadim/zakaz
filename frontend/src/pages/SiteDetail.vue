@@ -22,6 +22,7 @@
         <button type="button" @click="ping"><PlugZap :size="18" /> Проверить</button>
         <button type="button" @click="discover"><Search :size="18" /> Discover</button>
         <button type="button" @click="sync"><RefreshCw :size="18" /> Sync</button>
+        <button type="button" @click="fullBackfill"><RefreshCw :size="18" /> Full backfill</button>
         <button type="button" @click="activate"><Power :size="18" /> Активировать</button>
         <button type="button" class="danger" @click="deleteSite"><Trash2 :size="18" /> Удалить сайт</button>
       </div>
@@ -41,6 +42,12 @@
           <option value="">Все источники</option>
           <option value="rsform">RSForm</option>
           <option value="virtuemart">VirtueMart</option>
+        </select>
+        <select v-if="filters.source_type === 'rsform'" v-model="filters.source_form_id">
+          <option value="">Все формы</option>
+          <option v-for="form in forms" :key="form.id" :value="form.external_form_id">
+            {{ form.name || 'Форма не определена' }}
+          </option>
         </select>
         <select v-model="filters.internal_status">
           <option value="">Все статусы</option>
@@ -64,6 +71,8 @@
         <template #external_number="{ row }">
           <RouterLink :to="`/orders/${row.id}`">{{ row.external_number || row.external_id }}</RouterLink>
         </template>
+        <template #source_form_name="{ row }">{{ row.source_form_name || 'Форма не определена' }}</template>
+        <template #message="{ row }">{{ shortText(row.message) }}</template>
         <template #amount="{ row }">{{ row.amount ? `${row.amount} ${row.currency || ''}` : '' }}</template>
         <template #internal_status="{ row }"><StatusBadge :value="row.internal_status" /></template>
       </DataTable>
@@ -83,24 +92,50 @@ const route = useRoute()
 const router = useRouter()
 const site = ref(null)
 const orders = ref([])
+const forms = ref([])
 const message = ref('')
 const sortKey = ref('created_at')
 const filters = reactive({
   search: '',
   source_type: '',
+  source_form_id: '',
   internal_status: '',
   date_from: '',
   date_to: ''
 })
 
-const orderColumns = [
-  { key: 'source_type', label: 'Источник' },
-  { key: 'external_number', label: 'Номер' },
-  { key: 'customer_name', label: 'Клиент' },
-  { key: 'customer_phone', label: 'Телефон' },
-  { key: 'amount', label: 'Сумма' },
-  { key: 'internal_status', label: 'Статус' }
-]
+const orderColumns = computed(() => {
+  if (filters.source_type === 'rsform') {
+    return [
+      { key: 'source_form_name', label: 'Форма' },
+      { key: 'external_number', label: 'Номер' },
+      { key: 'customer_name', label: 'Имя' },
+      { key: 'customer_phone', label: 'Телефон' },
+      { key: 'customer_email', label: 'Email' },
+      { key: 'message', label: 'Сообщение' },
+      { key: 'internal_status', label: 'Статус' }
+    ]
+  }
+  if (filters.source_type === 'virtuemart') {
+    return [
+      { key: 'external_number', label: 'Номер заказа' },
+      { key: 'customer_name', label: 'Имя' },
+      { key: 'customer_phone', label: 'Телефон' },
+      { key: 'customer_email', label: 'Email' },
+      { key: 'amount', label: 'Сумма' },
+      { key: 'external_status', label: 'Внешний статус' },
+      { key: 'internal_status', label: 'Статус' }
+    ]
+  }
+  return [
+    { key: 'source_type', label: 'Источник' },
+    { key: 'external_number', label: 'Номер' },
+    { key: 'customer_name', label: 'Клиент' },
+    { key: 'customer_phone', label: 'Телефон' },
+    { key: 'amount', label: 'Сумма' },
+    { key: 'internal_status', label: 'Статус' }
+  ]
+})
 
 const sortedOrders = computed(() => {
   return [...orders.value].sort((a, b) => {
@@ -125,13 +160,23 @@ function healthLabel(currentSite) {
 function queryString() {
   const params = new URLSearchParams({ site_id: route.params.id })
   for (const [key, value] of Object.entries(filters)) {
+    if (key === 'source_form_id' && filters.source_type !== 'rsform') continue
     if (value) params.set(key, value)
   }
   return params.toString()
 }
 
+function shortText(value) {
+  if (!value) return ''
+  return value.length > 120 ? `${value.slice(0, 120)}...` : value
+}
+
 async function loadSite() {
   site.value = await api(`/sites/${route.params.id}`)
+}
+
+async function loadForms() {
+  forms.value = await api(`/rsform/forms?site_id=${route.params.id}`)
 }
 
 async function loadOrders() {
@@ -140,6 +185,7 @@ async function loadOrders() {
 
 async function reload() {
   await loadSite()
+  await loadForms()
   await loadOrders()
 }
 
@@ -186,8 +232,18 @@ async function discover() {
 
 async function sync() {
   const response = await api(`/sites/${route.params.id}/sync`, { method: 'POST' })
-  message.value = `${response.message}: created ${response.data?.created || 0}, updated ${response.data?.updated || 0}`
+  message.value = `${response.message}: created ${response.data?.created || 0}, updated ${response.data?.updated || 0}, batches ${sourceBatches(response.data)}`
   await reload()
+}
+
+async function fullBackfill() {
+  const response = await api(`/sites/${route.params.id}/full-backfill`, { method: 'POST' })
+  message.value = `${response.message}: created ${response.data?.created || 0}, updated ${response.data?.updated || 0}, batches ${sourceBatches(response.data)}`
+  await reload()
+}
+
+function sourceBatches(data) {
+  return Object.values(data?.sources || {}).reduce((sum, source) => sum + Number(source.batches || 0), 0)
 }
 
 async function activate() {

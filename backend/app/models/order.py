@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import DateTime, ForeignKey, JSON, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, TimestampMixin
+from app.db.base import Base, TimestampMixin, utcnow
 
 
 class Order(Base, TimestampMixin):
@@ -17,7 +17,11 @@ class Order(Base, TimestampMixin):
     source_type: Mapped[str] = mapped_column(String(30), index=True, nullable=False)
     external_id: Mapped[str] = mapped_column(String(120), nullable=False)
     external_number: Mapped[str | None] = mapped_column(String(120))
+    source_form_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    source_form_name: Mapped[str | None] = mapped_column(String(255))
     external_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at_source: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True, nullable=False)
     customer_name: Mapped[str | None] = mapped_column(String(255))
     customer_phone: Mapped[str | None] = mapped_column(String(80))
     customer_email: Mapped[str | None] = mapped_column(String(255))

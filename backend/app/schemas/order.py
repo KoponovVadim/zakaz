@@ -42,7 +42,11 @@ class OrderRead(BaseModel):
     source_type: str
     external_id: str
     external_number: str | None = None
+    source_form_id: str | None = None
+    source_form_name: str | None = None
     external_created_at: datetime | None = None
+    created_at_source: datetime | None = None
+    received_at: datetime
     customer_name: str | None = None
     customer_phone: str | None = None
     customer_email: str | None = None

@@ -28,3 +28,4 @@ class Site(Base, TimestampMixin):
     client: Mapped["Client"] = relationship(back_populates="sites")
     sources: Mapped[list["SiteSource"]] = relationship(back_populates="site", cascade="all, delete-orphan")
     orders: Mapped[list["Order"]] = relationship(back_populates="site")
+    rsform_forms: Mapped[list["RsformForm"]] = relationship(back_populates="site", cascade="all, delete-orphan")

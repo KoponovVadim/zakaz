@@ -10,6 +10,7 @@
         <h2>Основное</h2>
         <dl class="meta">
           <dt>Источник</dt><dd>{{ order.source_type }}</dd>
+          <dt v-if="order.source_type === 'rsform'">Форма</dt><dd v-if="order.source_type === 'rsform'">{{ order.source_form_name || 'Форма не определена' }}</dd>
           <dt>Клиент</dt><dd><RouterLink :to="`/clients/${order.client_id}`">{{ order.client_name || order.client_id }}</RouterLink></dd>
           <dt>Сайт</dt><dd>{{ order.site_name || order.site_id }}</dd>
           <dt>Статус сайта</dt><dd>{{ order.external_status || '-' }}</dd>

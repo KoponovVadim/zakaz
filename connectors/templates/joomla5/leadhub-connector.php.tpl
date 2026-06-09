@@ -34,6 +34,14 @@ function leadhub_param($key, $default = '') {
     return isset($_GET[$key]) ? (string) $_GET[$key] : $default;
 }
 
+function leadhub_limit() {
+    $limit = (int) leadhub_param('limit', '500');
+    if ($limit < 1) {
+        return 500;
+    }
+    return min($limit, 1000);
+}
+
 function leadhub_check_signature($action) {
     $siteUid = leadhub_param('site_uid');
     $ts = leadhub_param('ts');
@@ -96,20 +104,86 @@ function leadhub_load_assoc_list($db, $query) {
     return is_array($rows) ? $rows : array();
 }
 
+function leadhub_table_name($db, $table) {
+    return method_exists($db, 'replacePrefix') ? $db->replacePrefix($table) : str_replace('#__', $db->getPrefix(), $table);
+}
+
+function leadhub_discover_sources($db) {
+    $rsformInstalled = leadhub_table_exists($db, '#__rsform_submissions');
+    $forms = array();
+    $formsCount = 0;
+    $submissionsCount = 0;
+
+    if ($rsformInstalled) {
+        $submissionsTable = leadhub_table_name($db, '#__rsform_submissions');
+        $db->setQuery("SELECT COUNT(*) FROM " . $db->quoteName($submissionsTable));
+        $submissionsCount = (int) $db->loadResult();
+
+        if (leadhub_table_exists($db, '#__rsform_forms')) {
+            $formsTable = leadhub_table_name($db, '#__rsform_forms');
+            $query = "SELECT f.FormId, f.FormName, COUNT(s.SubmissionId) AS submissions_count FROM " .
+                $db->quoteName($formsTable) . " f LEFT JOIN " . $db->quoteName($submissionsTable) .
+                " s ON s.FormId = f.FormId GROUP BY f.FormId, f.FormName ORDER BY f.FormId ASC";
+            $formRows = leadhub_load_assoc_list($db, $query);
+            foreach ($formRows as $formRow) {
+                $forms[] = array(
+                    'form_id' => (string) $formRow['FormId'],
+                    'form_name' => $formRow['FormName'],
+                    'submissions_count' => (int) $formRow['submissions_count']
+                );
+            }
+            $formsCount = count($forms);
+        }
+    }
+
+    $vmInstalled = leadhub_table_exists($db, '#__virtuemart_orders');
+    $ordersCount = 0;
+    if ($vmInstalled) {
+        $ordersTable = leadhub_table_name($db, '#__virtuemart_orders');
+        $db->setQuery("SELECT COUNT(*) FROM " . $db->quoteName($ordersTable));
+        $ordersCount = (int) $db->loadResult();
+    }
+
+    return array(
+        'rsform' => array(
+            'installed' => $rsformInstalled,
+            'forms_count' => $formsCount,
+            'submissions_count' => $submissionsCount,
+            'forms' => $forms
+        ),
+        'virtuemart' => array(
+            'installed' => $vmInstalled,
+            'orders_count' => $ordersCount
+        )
+    );
+}
+
 function leadhub_sync_rsform($db) {
     if (!leadhub_table_exists($db, '#__rsform_submissions')) {
         return array();
     }
     $sinceId = max(0, (int) leadhub_param('since_id', '0'));
-    $submissionsTable = method_exists($db, 'replacePrefix') ? $db->replacePrefix('#__rsform_submissions') : str_replace('#__', $db->getPrefix(), '#__rsform_submissions');
-    $valuesTable = method_exists($db, 'replacePrefix') ? $db->replacePrefix('#__rsform_submission_values') : str_replace('#__', $db->getPrefix(), '#__rsform_submission_values');
+    $limit = leadhub_limit();
+    $submissionsTable = leadhub_table_name($db, '#__rsform_submissions');
+    $valuesTable = leadhub_table_name($db, '#__rsform_submission_values');
+    $formsTable = leadhub_table_name($db, '#__rsform_forms');
     $query = "SELECT SubmissionId, FormId, DateSubmitted FROM " . $db->quoteName($submissionsTable) .
-        " WHERE SubmissionId > " . (int) $sinceId . " ORDER BY SubmissionId ASC LIMIT 100";
+        " WHERE SubmissionId > " . (int) $sinceId . " ORDER BY SubmissionId ASC LIMIT " . (int) $limit;
     $submissions = leadhub_load_assoc_list($db, $query);
     $items = array();
+    $formNames = array();
+
+    if (leadhub_table_exists($db, '#__rsform_forms')) {
+        $formRows = leadhub_load_assoc_list($db, "SELECT FormId, FormName FROM " . $db->quoteName($formsTable));
+        foreach ($formRows as $formRow) {
+            $formNames[(string) $formRow['FormId']] = $formRow['FormName'];
+        }
+    }
 
     foreach ($submissions as $submission) {
         $submissionId = (int) $submission['SubmissionId'];
+        $formId = (string) $submission['FormId'];
+        $formName = isset($formNames[$formId]) ? $formNames[$formId] : null;
         $valueRows = array();
         if (leadhub_table_exists($db, '#__rsform_submission_values')) {
             $valuesQuery = "SELECT FieldName, FieldValue FROM " . $db->quoteName($valuesTable) .
@@ -125,13 +199,17 @@ function leadhub_sync_rsform($db) {
         $email = isset($fields['email']) ? $fields['email'] : (isset($fields['Email']) ? $fields['Email'] : null);
         $message = isset($fields['message']) ? $fields['message'] : (isset($fields['Message']) ? $fields['Message'] : null);
         $items[] = array(
+            'source_type' => 'rsform',
+            'source_name' => 'RSForm',
+            'source_form_id' => $formId,
+            'source_form_name' => $formName,
             'external_id' => (string) $submissionId,
             'external_number' => (string) $submissionId,
             'external_created_at' => $submission['DateSubmitted'],
             'customer_name' => $name,
             'customer_phone' => $phone,
             'customer_email' => $email,
-            'title' => 'RSForm #' . $submissionId,
+            'title' => $formName ? ('RSForm: ' . $formName . ' #' . $submissionId) : ('RSForm #' . $submissionId),
             'message' => $message,
             'status' => 'submitted',
             'fields' => $fields
@@ -145,12 +223,13 @@ function leadhub_sync_virtuemart($db) {
         return array();
     }
     $sinceId = max(0, (int) leadhub_param('since_id', '0'));
-    $ordersTable = method_exists($db, 'replacePrefix') ? $db->replacePrefix('#__virtuemart_orders') : str_replace('#__', $db->getPrefix(), '#__virtuemart_orders');
-    $userinfoTable = method_exists($db, 'replacePrefix') ? $db->replacePrefix('#__virtuemart_order_userinfos') : str_replace('#__', $db->getPrefix(), '#__virtuemart_order_userinfos');
-    $itemsTable = method_exists($db, 'replacePrefix') ? $db->replacePrefix('#__virtuemart_order_items') : str_replace('#__', $db->getPrefix(), '#__virtuemart_order_items');
+    $limit = leadhub_limit();
+    $ordersTable = leadhub_table_name($db, '#__virtuemart_orders');
+    $userinfoTable = leadhub_table_name($db, '#__virtuemart_order_userinfos');
+    $itemsTable = leadhub_table_name($db, '#__virtuemart_order_items');
     $query = "SELECT virtuemart_order_id, order_number, created_on, order_total, order_currency, order_status FROM " .
         $db->quoteName($ordersTable) . " WHERE virtuemart_order_id > " . (int) $sinceId .
-        " ORDER BY virtuemart_order_id ASC LIMIT 100";
+        " ORDER BY virtuemart_order_id ASC LIMIT " . (int) $limit;
     $orders = leadhub_load_assoc_list($db, $query);
     $items = array();
 
@@ -179,6 +258,10 @@ function leadhub_sync_virtuemart($db) {
         }
         $customerName = trim((isset($customer['first_name']) ? $customer['first_name'] : '') . ' ' . (isset($customer['last_name']) ? $customer['last_name'] : ''));
         $items[] = array(
+            'source_type' => 'virtuemart',
+            'source_name' => 'VirtueMart',
+            'source_form_id' => null,
+            'source_form_name' => null,
             'external_id' => (string) $orderId,
             'external_number' => $order['order_number'],
             'external_created_at' => $order['created_on'],
@@ -215,15 +298,13 @@ if (!$db) {
 if ($action === 'discover') {
     leadhub_json(array(
         'status' => 'ok',
-        'sources' => array(
-            'rsform' => leadhub_table_exists($db, '#__rsform_submissions'),
-            'virtuemart' => leadhub_table_exists($db, '#__virtuemart_orders')
-        )
+        'sources' => leadhub_discover_sources($db)
     ));
 }
 
 if ($action === 'sync') {
     $type = leadhub_param('type', 'all');
+    $limit = leadhub_limit();
     $items = array();
     if ($type === 'rsform' || $type === 'all') {
         $items = array_merge($items, leadhub_sync_rsform($db));
@@ -231,7 +312,22 @@ if ($action === 'sync') {
     if ($type === 'virtuemart' || $type === 'all') {
         $items = array_merge($items, leadhub_sync_virtuemart($db));
     }
-    leadhub_json(array('status' => 'ok', 'type' => $type, 'items' => $items));
+    $count = count($items);
+    $nextSinceId = null;
+    foreach ($items as $item) {
+        if (isset($item['external_id']) && ($nextSinceId === null || (int) $item['external_id'] > (int) $nextSinceId)) {
+            $nextSinceId = (string) $item['external_id'];
+        }
+    }
+    leadhub_json(array(
+        'status' => 'ok',
+        'type' => $type,
+        'items' => $items,
+        'count' => $count,
+        'limit' => $limit,
+        'has_more' => $count > 0 && $count >= $limit,
+        'next_since_id' => $nextSinceId
+    ));
 }
 
 leadhub_json(array('status' => 'error', 'code' => 'unknown_action', 'message' => 'Unknown action'), 400);

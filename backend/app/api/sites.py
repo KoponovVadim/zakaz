@@ -14,7 +14,7 @@ from app.models import Client, Order, OrderComment, OrderItem, OrderStatusHistor
 from app.schemas.site import ConnectorCheckResponse, SiteCreate, SiteRead, SiteUpdate
 from app.services.connector_client import call_connector
 from app.services.connector_generator import render_connector
-from app.services.connector_sync import run_site_sync
+from app.services.connector_sync import run_site_sync, save_discovered_rsform_forms
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -143,7 +143,11 @@ async def discover_site(site_id: int, db: Session = Depends(get_db)):
         data = await call_connector(site.normalized_url, decrypt_secret(site.connector_secret_encrypted), site.site_uid, "discover")
         found = data.get("sources", {}) if isinstance(data, dict) else {}
         for source in site.sources:
-            source.discovered = bool(found.get(source.source_type))
+            source_info = found.get(source.source_type)
+            source.discovered = bool(source_info.get("installed")) if isinstance(source_info, dict) else bool(source_info)
+        rsform_info = found.get("rsform")
+        if isinstance(rsform_info, dict):
+            save_discovered_rsform_forms(db, site, rsform_info.get("forms") or [])
         site.status = "connected"
         site.last_discover_at = datetime.now(timezone.utc)
         site.last_error = None
@@ -163,6 +167,13 @@ async def sync_site(site_id: int, db: Session = Depends(get_db)):
     return ConnectorCheckResponse(status="ok", message="Sync completed", data=result)
 
 
+@router.post("/{site_id}/full-backfill", response_model=ConnectorCheckResponse)
+async def full_backfill_site(site_id: int, db: Session = Depends(get_db)):
+    site = get_site_or_404(db, site_id)
+    result = await run_site_sync(db, site, decrypt_secret(site.connector_secret_encrypted), full_backfill=True)
+    return ConnectorCheckResponse(status="ok", message="Full backfill completed", data=result)
+
+
 @router.post("/{site_id}/sync-rsform", response_model=ConnectorCheckResponse)
 async def sync_rsform(site_id: int, db: Session = Depends(get_db)):
     site = get_site_or_404(db, site_id)
@@ -170,11 +181,37 @@ async def sync_rsform(site_id: int, db: Session = Depends(get_db)):
     return ConnectorCheckResponse(status="ok", message="RSForm sync completed", data=result)
 
 
+@router.post("/{site_id}/full-backfill-rsform", response_model=ConnectorCheckResponse)
+async def full_backfill_rsform(site_id: int, db: Session = Depends(get_db)):
+    site = get_site_or_404(db, site_id)
+    result = await run_site_sync(
+        db,
+        site,
+        decrypt_secret(site.connector_secret_encrypted),
+        "rsform",
+        full_backfill=True,
+    )
+    return ConnectorCheckResponse(status="ok", message="RSForm full backfill completed", data=result)
+
+
 @router.post("/{site_id}/sync-virtuemart", response_model=ConnectorCheckResponse)
 async def sync_virtuemart(site_id: int, db: Session = Depends(get_db)):
     site = get_site_or_404(db, site_id)
     result = await run_site_sync(db, site, decrypt_secret(site.connector_secret_encrypted), "virtuemart")
     return ConnectorCheckResponse(status="ok", message="VirtueMart sync completed", data=result)
+
+
+@router.post("/{site_id}/full-backfill-virtuemart", response_model=ConnectorCheckResponse)
+async def full_backfill_virtuemart(site_id: int, db: Session = Depends(get_db)):
+    site = get_site_or_404(db, site_id)
+    result = await run_site_sync(
+        db,
+        site,
+        decrypt_secret(site.connector_secret_encrypted),
+        "virtuemart",
+        full_backfill=True,
+    )
+    return ConnectorCheckResponse(status="ok", message="VirtueMart full backfill completed", data=result)
 
 
 @router.post("/{site_id}/activate", response_model=SiteRead)
